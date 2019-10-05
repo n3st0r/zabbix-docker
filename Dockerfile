@@ -3,8 +3,11 @@ LABEL maintainer="Piotr Dobrysiak"
 
 ARG APK_FLAGS_DEV="--no-cache"
 
-ENV TERM=xterm MIBDIRS=/usr/share/snmp/mibs:/var/lib/zabbix/mibs MIBS=+ALL \
-    ZBX_TYPE=server ZBX_DB_TYPE=postgresql ZBX_OPT_TYPE=none
+ENV TERM=xterm MIBDIRS=/usr/share/snmp/mibs:/var/lib/zabbix/mibs \
+    MIBS=+ALL \
+    ZBX_TYPE=server \
+    ZBX_DB_TYPE=postgresql \
+    ZBX_OPT_TYPE=none
 
 RUN set -eux && \
     addgroup zabbix && \
@@ -12,11 +15,13 @@ RUN set -eux && \
         -h /var/lib/zabbix/ \
         -G zabbix \
         -S \
+        -D \
         zabbix && \
     mkdir /etc/zabbix && \
     mkdir -p /var/lib/zabbix && \
     chown -R zabbix:root /var/lib/zabbix && \
     chown -R zabbix:root /etc/zabbix && \
+    mkdir -p /usr/share/doc/zabbix-${ZBX_TYPE}-${ZBX_DB_TYPE} && \
     apk update && \
     apk add \
         bash \
@@ -86,4 +91,19 @@ RUN set -eux && \
     make -j"$(nproc)" -s dbschema && \
     make -j"$(nproc)" -s && \
 
-    echo TEST
+    cp src/zabbix_${ZBX_TYPE}/zabbix_${ZBX_TYPE} /usr/sbin/zabbix_${ZBX_TYPE} && \
+    cp src/zabbix_get/zabbix_get /usr/bin/zabbix_get && \
+    cp src/zabbix_sender/zabbix_sender /usr/bin/zabbix_sender && \
+    cp conf/zabbix_${ZBX_TYPE}.conf /etc/zabbix/zabbix_${ZBX_TYPE}.conf && \
+    chown --quiet -R zabbix:root /etc/zabbix && \
+    cat database/${ZBX_DB_TYPE}/schema.sql > database/${ZBX_DB_TYPE}/create.sql && \
+    cat database/${ZBX_DB_TYPE}/images.sql >> database/${ZBX_DB_TYPE}/create.sql && \
+    cat database/${ZBX_DB_TYPE}/data.sql >> database/${ZBX_DB_TYPE}/create.sql && \
+    gzip database/${ZBX_DB_TYPE}/create.sql && \
+    cp database/${ZBX_DB_TYPE}/create.sql.gz /usr/share/doc/zabbix-${ZBX_TYPE}-${ZBX_DB_TYPE}/ && \
+    cp database/${ZBX_DB_TYPE}/timescaledb.sql /usr/share/doc/zabbix-${ZBX_TYPE}-${ZBX_DB_TYPE}/ && \
+    cd /tmp/ && \
+    rm -rf /tmp/zabbix-${ZBX_VERSION}/ && \
+    apk del ${APK_FLAGS_COMMON} --purge --no-network \
+            build-dependencies && \
+    rm -rf /var/cache/apk/*
